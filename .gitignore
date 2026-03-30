@@ -1,0 +1,23 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE / Editor
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Virtual environments
+.env/
+.venv/
+
+# Sensitive
+MyMangaTagger/settings.json
+MyMangaTagger/mymangatagger.log
+MyMangaTagger/mymangatagger.log.*
