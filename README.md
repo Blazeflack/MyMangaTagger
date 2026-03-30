@@ -10,7 +10,7 @@ The app provides a drag-and-drop GUI that allows you to load manga, fetch metada
 
 ## ✨ Features
 
-- Load `.cbz` files from folder or via drag-and-drop
+- Load `.cbz` or `.zip` files from folder or via drag-and-drop
 - Fetch metadata from:
   - `Anilist.co` (GraphQL API with JSON response)
 - Edit metadata in a user-friendly GUI
