@@ -46,7 +46,7 @@ python run.pyw
 1. Load or drop `.cbz` or `.zip` files. `.zip` files are automatically renamed to `.cbz`.
 2. Select one or more files.
 3. Select fetching mode (Per-file / Single URL -> Apply to all).
-4. Select source (Auto / Anilist) and click the Fetch button.
+4. Select source and click the Fetch button.
 5. Dialog popup appears showing the filename. When using "Per-file" mode the filename is automatically copied to clipboard for quick search on source site.
 6. Paste the URL for the file shown in the dialog. The dialog auto-accepts when a valid link is pasted or dropped.
 7. Edit any fields if needed.
