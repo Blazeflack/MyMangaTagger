@@ -30,6 +30,7 @@ from gui.panels.cover_panel import CoverPanel
 from gui.panels.control_panel import ControlPanel
 from gui.settings_dialog import SettingsDialog
 from gui.url_dialog import UrlDialog
+from gui.batch_apply_dialog import BatchApplyDialog
 
 from sources.router import RouterSource
 
@@ -788,10 +789,15 @@ class MainWindow:
         )
 
     def _on_fetch_single_apply(self, mode: str, paths: list[Path]) -> None:
-        """Prompt once for a URL, fetch metadata once, and apply to all selected files.
+        """Prompt once for a URL, fetch metadata once, and apply it to all selected files.
 
-        Auto-numbering: assigns Number = 1..N (selection order).
-        Title: appends ", Vol. {Number}" suffix.
+        After a successful fetch, a second dialog allows the user to confirm or
+        override the shared base title, choose the starting number, and preview
+        the generated title format before the metadata is applied.
+
+        Auto-numbering uses the current list selection order:
+            - Number = start_number..start_number + N - 1
+            - Title = "{base_title}, Vol. {Number}"
 
         Args:
             mode: One of constants.FETCH_MODE_OPTIONS.
@@ -800,7 +806,7 @@ class MainWindow:
         # Resolve forced source for the router (None = Auto)
         forced: str | None = None if mode == "Auto" else mode.lower()
 
-        # Build a router (reuses cookies/sessions inside scrapers)
+        # Build a router (reuses sessions inside source adapters)
         src = RouterSource(
             self,
             cover_getter=self.cover.get_thumbnail,
@@ -819,7 +825,6 @@ class MainWindow:
             self.status_reporter(line2="[FETCH] Cancelled fetch for all files.", level2="DEBUG")
             return
 
-        # Tell the user we're working (line1), keep logs clean (level1="NONE")
         self.status_reporter(
             line1=f"Fetching shared metadata ({mode})...",
             line2=f"URL entered; applying to {len(paths)} file(s) on success.",
@@ -843,28 +848,49 @@ class MainWindow:
                 else:
                     norm[k] = self.normalizer.normalize_whitespace(v)
 
-            # 3) Apply per-file with auto-numbering and title suffix
-            total = len(paths)
-            for idx, p in enumerate(paths, start=1):
+            fetched_title = norm.get("title", "").strip()
+            options = self._prompt_batch_apply_options(
+                fetched_title=fetched_title,
+                start_number=1,
+            )
+
+            if options is None:
+                self.status_reporter(
+                    line1="Ready.",
+                    line2="[FETCH] Cancelled batch apply options.",
+                    level1="NONE",
+                    level2="DEBUG",
+                )
+                return
+
+            base_title = str(options["base_title"]).strip() or fetched_title
+            start_number = int(options["start_number"])
+
+            # 3) Apply per-file with chosen title base and starting number
+            for offset, path in enumerate(paths):
+                volume_number = start_number + offset
                 md = dict(norm)
 
                 # Auto-number (stored as string for ComicInfo)
-                md["number"] = str(idx)
+                md["number"] = str(volume_number)
 
-                # Append or replace ", Vol. {Number}" in Title
-                base_title = md.get("title", "")
-                md["title"] = self._append_volume_to_title(base_title, idx)
+                # Title is always based on the chosen batch title
+                md["title"] = self._append_volume_to_title(base_title, volume_number)
 
-                self.metadata[p] = md
+                self.metadata[path] = md
 
             # 4) Refresh the right-hand fields if selection is visible
             if self.current_index is not None:
                 self.root.after(0, lambda: self._on_selection(self.current_index))
 
             # 5) Final status
+            end_number = start_number + len(paths) - 1
             self.status_reporter(
                 line1="Ready.",
-                line2=f"Applied fetched metadata to {len(paths)} file(s).",
+                line2=(
+                    f"Applied fetched metadata to {len(paths)} file(s) "
+                    f"(numbers {start_number}-{end_number})."
+                ),
                 level1="NONE",
                 level2="INFO",
             )
@@ -1166,6 +1192,41 @@ class MainWindow:
             else:
                 # Extend for other dropdowns as needed
                 pass
+
+    def _prompt_batch_apply_options(
+        self,
+        fetched_title: str,
+        start_number: int = 1,
+    ) -> dict[str, str | int] | None:
+        """Show the batch apply dialog on the Tk main thread and return the result.
+
+        This helper exists because metadata fetching runs on a background thread,
+        while Tkinter dialogs must be created on the main GUI thread.
+
+        Args:
+            fetched_title: Title fetched from the metadata source.
+            start_number: Initial start number to show in the dialog.
+
+        Returns:
+            None if the dialog was cancelled, otherwise a dict containing:
+                - "base_title": str
+                - "start_number": int
+        """
+        done = threading.Event()
+        result_holder: dict[str, dict[str, str | int] | None] = {"result": None}
+
+        def show_dialog() -> None:
+            dialog = BatchApplyDialog(
+                self.root,
+                fetched_title=fetched_title,
+                start_number=start_number,
+            )
+            result_holder["result"] = dialog.result
+            done.set()
+
+        self.root.after(0, show_dialog)
+        done.wait()
+        return result_holder["result"]
 
     def _append_volume_to_title(self, title: str, num: int) -> str:
         """Return `title` with `, Vol. {num}` suffix.

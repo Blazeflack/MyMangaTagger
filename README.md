@@ -13,6 +13,7 @@ The app provides a drag-and-drop GUI that allows you to load manga, fetch metada
 - Load `.cbz` or `.zip` files from folder or via drag-and-drop
 - Fetch metadata from:
   - `Anilist.co` (GraphQL API with JSON response)
+- Batch-apply metadata to multiple files from a single URL
 - Edit metadata in a user-friendly GUI
 - Add new cover image (will add selected file as `00000!__cover.{ext}` to archive when processed)
 - Fully customizable filename format using tokens like `{TITLE}`, `{IMPRINT_WRITER}`, etc.
@@ -119,6 +120,7 @@ MyMangaTagger/
 │   └── default_cover.png      # Default cover image as placeholder
 │
 ├── gui/                       # All GUI components and dialogs
+│   ├── batch_apply_dialog.py  # Dialog window for overriding metadata used in batch apply
 │   ├── log_viewer.py          # Log viewer window for displaying application logs
 │   ├── main_window.py         # Main GUI application window and event loop
 │   ├── settings_dialog.py     # Dialog window for editing app/user settings

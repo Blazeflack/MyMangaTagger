@@ -41,6 +41,10 @@ SETTINGS_HEIGHT = 850
 URL_DIALOG_WIDTH = 800
 URL_DIALOG_HEIGHT = 260
 
+# GUI: Batch Apply Dialog
+BATCH_APPLY_DIALOG_WIDTH = 660
+BATCH_APPLY_DIALOG_HEIGHT = 360
+
 # GUI: Fetch Mode constants
 # Canonical values used in logic:
 FETCH_MODE_PER_FILE: str = "per_file"
