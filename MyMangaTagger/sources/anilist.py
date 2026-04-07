@@ -514,11 +514,13 @@ class AniListSource(MetadataSource):
 
     Attributes:
         source_key: Registry key used by the plugin loader (``"anilist"``).
+        source_name: Human-friendly source name shown in the GUI.
         url_patterns: URL substrings used for auto-detection.
         dialog_title: Title shown in the URL entry dialog.
     """
 
     source_key   = "anilist"
+    source_name = "AniList"
     url_patterns = ["anilist.co/manga/"]
     dialog_title = "Fetch metadata from AniList"
 

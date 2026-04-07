@@ -44,6 +44,7 @@ class MetadataSource(ABC):
 
     Subclasses must define:
         - ``source_key`` (str): Unique registry identifier.
+        - ``source_name`` (str): Human-friendly source name used in the GUI.
         - ``url_patterns`` (list[str]): Substrings used for URL auto-detection.
         - ``_fetch_from_url(url)`` (method): Performs the actual fetch.
 
@@ -63,7 +64,8 @@ class MetadataSource(ABC):
     SKIP = "__SKIP__"
 
     _registry: ClassVar[dict[str, type["MetadataSource"]]] = {}
-    source_key:   ClassVar[str]       = ""
+    source_key: ClassVar[str] = ""
+    source_name: ClassVar[str] = ""
     url_patterns: ClassVar[list[str]] = []
 
     # ------------------------------------------------------------------
@@ -101,6 +103,34 @@ class MetadataSource(ABC):
             Dict mapping source_key strings to MetadataSource subclasses.
         """
         return dict(cls._registry)
+
+    @classmethod
+    def get_source_display_names(cls) -> list[str]:
+        """Return all registered source display names sorted by source key.
+
+        Returns:
+            List of human-friendly source names for use in the GUI.
+        """
+        display_names: list[str] = []
+        for key in sorted(cls._registry):
+            source_cls = cls._registry[key]
+            display_names.append(source_cls.source_name or key)
+        return display_names
+
+    @classmethod
+    def get_source_key_from_name(cls, source_name: str) -> Optional[str]:
+        """Return the source key matching a display name.
+
+        Args:
+            source_name: Human-friendly source name shown in the GUI.
+
+        Returns:
+            Matching source key, or None if no source uses that name.
+        """
+        for key, source_cls in cls._registry.items():
+            if source_cls.source_name == source_name:
+                return key
+        return None
 
     # ------------------------------------------------------------------
     # Initialisation

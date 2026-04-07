@@ -719,7 +719,8 @@ class MainWindow:
             self._on_fetch_single_apply(mode, selected_paths)
             return
 
-        forced = None if mode == "Auto" else mode.lower()
+        from sources.base import MetadataSource
+        forced = None if mode == "Auto" else MetadataSource.get_source_key_from_name(mode)
 
         src = RouterSource(
             self,
@@ -804,7 +805,8 @@ class MainWindow:
             paths: Selected file paths to receive the same fetched metadata.
         """
         # Resolve forced source for the router (None = Auto)
-        forced: str | None = None if mode == "Auto" else mode.lower()
+        from sources.base import MetadataSource
+        forced: str | None = None if mode == "Auto" else MetadataSource.get_source_key_from_name(mode)
 
         # Build a router (reuses sessions inside source adapters)
         src = RouterSource(

@@ -8,11 +8,12 @@ How to use this template:
        `mysource.py`.
     2. Rename `TemplateClient` and `TemplateSource` to match the new source.
     3. Set a unique `source_key`.
-    4. Update `url_patterns` so Auto mode can detect the source from URLs.
-    5. Implement the client fetch/parsing logic.
-    6. Update `_map_meta()` so the returned metadata matches the fields
+    4. Set a human-friendly `source_name` for the GUI.
+    5. Update `url_patterns` so Auto mode can detect the source from URLs.
+    6. Implement the client fetch/parsing logic.
+    7. Update `_map_meta()` so the returned metadata matches the fields
        your source can provide.
-    7. Save the file. The source will be auto-discovered by `load_all_sources()`
+    8. Save the file. The source will be auto-discovered by `load_all_sources()`
        because all source modules in `sources/` are imported automatically,
        except files that start with `_`.
 
@@ -64,6 +65,7 @@ class TemplateSource(MetadataSource):
     """
 
     source_key = "template"
+    source_name = "Template Source"
     url_patterns = [
         "example.com/title/",
         "example.com/item/",

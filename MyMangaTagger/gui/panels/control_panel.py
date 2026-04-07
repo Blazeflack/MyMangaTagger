@@ -128,7 +128,7 @@ class ControlPanel:
         load_all_sources()
 
         self.source_var = tk.StringVar(value="Auto")
-        sources = ["Auto"] + [k.capitalize() for k in sorted(MetadataSource.registered_sources())]
+        sources = ["Auto"] + MetadataSource.get_source_display_names()
 
         tb.Label(fetch_row, text="Source:").pack(side=tk.LEFT, padx=(0, 5))
         source_menu = tb.OptionMenu(fetch_row, self.source_var, self.source_var.get(), *sources)
