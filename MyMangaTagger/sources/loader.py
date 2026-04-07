@@ -15,6 +15,8 @@ def load_all_sources() -> None:
     for _, module_name, _ in pkgutil.iter_modules([str(package_dir)]):
         if module_name in ("base", "loader", "router"):
             continue
+        if module_name.startswith("_"):
+            continue
         try:
             importlib.import_module(f"{package_name}.{module_name}")
         except Exception as exc:
