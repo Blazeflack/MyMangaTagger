@@ -153,8 +153,7 @@ class SettingsDialog(tk.Toplevel):
             token_and_limit_row,
             text=(
                 "Available tokens:\n"
-                "{TITLE}, {WRITER}, {IMPRINT}, {IMPRINT_WRITER},\n"
-                "{GENRE}, {SERIESGROUP}, {SERIES}"
+                "{TITLE}, {WRITER}, {GENRE}, {SERIES}, {SERIESGROUP}"
             ),
             foreground=self.style.colors.light,
             font=constants.DEFAULT_FONT_ITALIC,
@@ -269,10 +268,9 @@ class SettingsDialog(tk.Toplevel):
         example_metadata: Dict[str, str] = {
             "title": "Funny Title",
             "writer": "Awesome Author",
-            "imprint": "Crazy Circle",
-            "seriesgroup": "Comical Magazine",
-            "genre": "Frieren",
-            "series": "Succubus Tales",
+            "seriesgroup": "Great Collection",
+            "genre": "Comedy, Romance",
+            "series": "Succubus Series",
         }
 
         try:

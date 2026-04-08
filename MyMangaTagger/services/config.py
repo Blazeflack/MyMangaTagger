@@ -19,7 +19,7 @@ DEFAULTS = MappingProxyType({
         "relative_name": "Processed", # relative-mode subfolder name
         "static_path": ""             # absolute path if static
     }),
-    "FILENAME_TEMPLATE": "[{IMPRINT_WRITER}] {TITLE} ({SERIESGROUP}) ({GENRE})",
+    "FILENAME_TEMPLATE": "[{WRITER}] {TITLE} ({SERIESGROUP})",
     "MAX_FILENAME_WRITERS": 2,
     "MAX_FILENAME_GENRES": 2,
 })

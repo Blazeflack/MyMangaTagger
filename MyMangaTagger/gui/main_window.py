@@ -288,7 +288,7 @@ class MainWindow:
         # LanguageISO dropdown: include blank option at top
         lang_values = [""] + constants.LANGUAGE_DISPLAY
         f = make_field(
-            row, "LanguageISO", tb.OptionMenu,
+            row, "LanguageISO", "Language ISO", tb.OptionMenu,
             variable=self.languageiso_var,
             values=lang_values,
         )
@@ -306,7 +306,7 @@ class MainWindow:
 
         # AgeRating dropdown: include blank option at top
         f = make_field(
-            row, "AgeRating", tb.OptionMenu,
+            row, "AgeRating", "Age Rating", tb.OptionMenu,
             variable=self.agerating_var,
             values=[""] + constants.AGERATING_VALUES,
         )
@@ -316,17 +316,15 @@ class MainWindow:
 
         # WRITER + IMPRINT
         row = tb.Frame(basic_tab)
-        f = make_field(row, "Writer", tb.Entry)
+        f = make_field(row, "Writer", "Writer(s)", tb.Entry)
         f.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
-        f = make_field(row, "Imprint", "Imprint (e.g. Circle)", tb.Entry)
+        f = make_field(row, "Publisher", tb.Entry)
         f.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
         row.pack(fill=tk.X, pady=4)
 
         # PUBLISHER + GENRE
         row = tb.Frame(basic_tab)
-        f = make_field(row, "Publisher", tb.Entry)
-        f.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
-        f = make_field(row, "Genre", "Genre (or Parody)", tb.Entry)
+        f = make_field(row, "Genre", "Genre(s)", tb.Entry)
         f.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
         row.pack(fill=tk.X, pady=4)
 
@@ -335,7 +333,7 @@ class MainWindow:
         f.pack(fill=tk.X, padx=5, pady=4)
 
         # WEB
-        f = make_field(basic_tab, "Web", tk.Text, height=4, wrap="none")
+        f = make_field(basic_tab, "Web", "Links", tk.Text, height=4, wrap="none")
         f.pack(fill=tk.X, padx=5, pady=4)
 
         # Advanced tab (People + Additional Fields)

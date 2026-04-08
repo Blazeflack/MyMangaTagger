@@ -4,7 +4,7 @@
 Module for formatting CBZ filenames based on a user-defined template and metadata.
 
 This module provides the `FilenameFormatter` class, which replaces tokens in a template
-(`{TITLE}`, `{WRITER}`, `{IMPRINT}`, `{IMPRINT_WRITER}`, `{SERIESGROUP}`, `{GENRE}`, `{SERIES}`)
+(`{TITLE}`, `{WRITER}`, `{SERIESGROUP}`, `{GENRE}`, `{SERIES}`)
 with metadata values, cleans up redundant characters and spaces, sanitizes the result for
 filesystem safety, and appends a `.cbz` extension.
 """
@@ -46,23 +46,9 @@ class FilenameFormatter:
         writer_raw: str = metadata.get('writer', '')
         writer: str = self.normalizer.normalize_writer_field(writer_raw)
 
-        # Normalize imprint (title-case then collapse whitespace)
-        imprint_raw: str = metadata.get('imprint', '')
-        imprint: str = self.normalizer.normalize_whitespace(imprint_raw)
-
         # Normalize genre field (limits number of genres)
         genres_raw: str = metadata.get('genre', '')
         genre: str = self.normalizer.normalize_genre_field(genres_raw)
-
-        # Compose imprint_writer token
-        if imprint and writer:
-            imprint_writer: str = f"{imprint} ({writer})"
-        elif imprint:
-            imprint_writer: str = imprint
-        elif writer:
-            imprint_writer: str = writer
-        else:
-            imprint_writer: str = ""
 
         # Title token (fallback to filename stem if missing)
         raw_title_from_metadata = metadata.get('title')
@@ -79,8 +65,6 @@ class FilenameFormatter:
         tokens: Dict[str, str] = {
             'TITLE': title,
             'WRITER': writer,
-            'IMPRINT': imprint,
-            'IMPRINT_WRITER': imprint_writer,
             'SERIESGROUP': self.normalizer.normalize_whitespace(metadata.get('seriesgroup', '')),
             'GENRE': genre,
             'SERIES': self.normalizer.normalize_whitespace(metadata.get('series', '')),

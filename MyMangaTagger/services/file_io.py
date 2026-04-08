@@ -25,7 +25,7 @@ from services.normalization import Normalizer
 FIELD_NAMES: List[str] = [
     "Title", "Series", "Number", "Count", "Summary",
     "Year", "Month", "Day", "Writer",
-    "Publisher", "Imprint",
+    "Publisher",
     "Genre", "Tags", "Web",
     "LanguageISO", "Manga", "AgeRating",
     "SeriesGroup", "LocalizedSeries",

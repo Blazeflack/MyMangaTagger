@@ -134,7 +134,6 @@ class TemplateSource(MetadataSource):
             - day
             - writer
             - publisher
-            - imprint
             - genre
             - tags
             - web
@@ -165,7 +164,6 @@ class TemplateSource(MetadataSource):
             "day": raw.get("day", ""),
             "writer": raw.get("writer", ""),
             "publisher": raw.get("publisher", ""),
-            "imprint": raw.get("imprint", ""),
             "genre": raw.get("genre", ""),
             "tags": raw.get("tags", ""),
             "web": raw.get("web", "") or url,

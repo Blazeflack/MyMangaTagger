@@ -591,7 +591,6 @@ class AniListSource(MetadataSource):
         return {
             "title":           raw.get("title", ""),
             "writer":          raw.get("writer", ""),
-            "imprint":         raw.get("imprint", ""),
             "tags":            raw.get("tags", ""),
             "web":             raw.get("web", "") or url,
             "series":          raw.get("series", ""),
