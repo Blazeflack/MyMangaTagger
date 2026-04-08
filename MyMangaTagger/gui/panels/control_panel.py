@@ -132,7 +132,7 @@ class ControlPanel:
 
         tb.Label(fetch_row, text="Source:").pack(side=tk.LEFT, padx=(0, 5))
         source_menu = tb.OptionMenu(fetch_row, self.source_var, self.source_var.get(), *sources)
-        source_menu.configure(width=6, bootstyle="light-outline")
+        source_menu.configure(width=10, bootstyle="light-outline")
         source_menu.pack(side=tk.LEFT)
 
         tb.Button(fetch_row, text="Fetch", command=lambda: on_fetch(self.source_var.get())).pack(
