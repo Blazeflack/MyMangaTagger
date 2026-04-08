@@ -318,7 +318,6 @@ class MangaBakaClient:
 
         mapped_name = self._extract_publisher_from_links(external_links)
         if mapped_name:
-            log("DEBUG", f"found publisher: {mapped_name}")
             return mapped_name
 
         return fallback_name
