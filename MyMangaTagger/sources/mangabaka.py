@@ -373,12 +373,9 @@ class MangaBakaClient:
             if not url:
                 continue
 
-            try:
-                host = url.split("//", 1)[-1].split("/", 1)[0].lower()
-            except Exception:
+            host = self._extract_url_host(url)
+            if not host:
                 continue
-
-            host = host.removeprefix("www.")
 
             for domain, publisher_name in PUBLISHER_DOMAIN_MAP.items():
                 if host.endswith(domain):
@@ -463,7 +460,12 @@ class MangaBakaClient:
         return ""
 
     def _extract_web(self, series: Dict[str, Any]) -> str:
-        """Build the ComicInfo Web field from the MangaBaka links list.
+        """Build the ComicInfo Web field using curated source URLs only.
+
+        Included URLs are limited to:
+            1. The MangaBaka series URL.
+            2. The AniList manga URL when a linked AniList ID exists.
+            3. External links whose domains are present in PUBLISHER_DOMAIN_MAP.
 
         Args:
             series: Raw MangaBaka series object.
@@ -471,17 +473,100 @@ class MangaBakaClient:
         Returns:
             Space-separated URL string.
         """
+        curated_links: List[str] = []
+
+        mangabaka_url = self._build_mangabaka_series_url(series)
+        if mangabaka_url:
+            curated_links.append(mangabaka_url)
+
+        anilist_url = self._build_anilist_series_url(series)
+        if anilist_url:
+            curated_links.append(anilist_url)
+
         links = series.get("links")
-        if not isinstance(links, list):
+        if isinstance(links, list):
+            for link in links:
+                if not isinstance(link, str):
+                    continue
+
+                normalized_link = self.normalizer.normalize_whitespace(link)
+                if not normalized_link:
+                    continue
+
+                if self._is_publisher_domain_link(normalized_link):
+                    curated_links.append(normalized_link)
+
+        unique_links = list(dict.fromkeys(curated_links))
+        return " ".join(unique_links)
+
+    def _build_mangabaka_series_url(self, series: Dict[str, Any]) -> str:
+        """Build the canonical MangaBaka series URL from the series ID.
+
+        Args:
+            series: Raw MangaBaka series object.
+
+        Returns:
+            Canonical MangaBaka URL, or an empty string if no valid ID exists.
+        """
+        raw_id = series.get("id")
+        try:
+            series_id = int(raw_id)
+        except (TypeError, ValueError):
             return ""
 
-        valid_links = [
-            self.normalizer.normalize_whitespace(link)
-            for link in links
-            if isinstance(link, str) and link.strip()
-        ]
-        unique_links = list(dict.fromkeys(valid_links))
-        return " ".join(unique_links)
+        return f"https://mangabaka.org/{series_id}"
+
+    def _build_anilist_series_url(self, series: Dict[str, Any]) -> str:
+        """Build the canonical AniList manga URL from the linked AniList ID.
+
+        Args:
+            series: Raw MangaBaka series object.
+
+        Returns:
+            Canonical AniList manga URL, or an empty string if no valid ID exists.
+        """
+        anilist_id = self._extract_anilist_id(series)
+        if anilist_id is None:
+            return ""
+
+        return f"https://anilist.co/manga/{anilist_id}"
+
+    def _is_publisher_domain_link(self, url: str) -> bool:
+        """Return whether a URL belongs to one of the mapped publisher domains.
+
+        Args:
+            url: URL to check.
+
+        Returns:
+            True if the URL hostname matches a domain in PUBLISHER_DOMAIN_MAP.
+        """
+        host = self._extract_url_host(url)
+        if not host:
+            return False
+
+        for domain in PUBLISHER_DOMAIN_MAP:
+            if host.endswith(domain):
+                return True
+
+        return False
+
+    @staticmethod
+    def _extract_url_host(url: str) -> str:
+        """Extract a normalized hostname from a URL string.
+
+        Args:
+            url: URL to inspect.
+
+        Returns:
+            Lowercased hostname without a leading ``www.``, or an empty string
+            if parsing fails.
+        """
+        try:
+            host = url.split("//", 1)[-1].split("/", 1)[0].lower()
+        except Exception:
+            return ""
+
+        return host.removeprefix("www.")
 
     def _fetch_anilist_people(self, series: Dict[str, Any]) -> Dict[str, str]:
         """Fetch enriched staff fields from AniList using MangaBaka's linked ID.
