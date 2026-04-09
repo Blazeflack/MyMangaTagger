@@ -18,6 +18,7 @@ import requests
 from services.constants import PUBLISHER_DOMAIN_MAP
 from services.logger import log
 from services.normalization import Normalizer
+from sources.anilist import AniListClient
 from sources.base import MetadataSource, SourceFetchError
 
 
@@ -47,6 +48,7 @@ class MangaBakaClient:
     def __init__(self) -> None:
         """Initialize the MangaBaka client."""
         self.normalizer = Normalizer()
+        self._anilist_client = AniListClient()
 
     def fetch(self, url: str) -> Dict[str, str]:
         """Fetch and normalize raw metadata from a MangaBaka URL.
@@ -149,8 +151,27 @@ class MangaBakaClient:
 
         year, month, day = self._extract_published_date(series.get("published"))
 
-        authors = self._join_people(series.get("authors"))
-        artists = self._join_people(series.get("artists"))
+        mangabaka_authors = self._join_people(series.get("authors"))
+        mangabaka_artists = self._join_people(series.get("artists"))
+        anilist_people = self._fetch_anilist_people(series)
+
+        writer = self._merge_people_strings(
+            anilist_people.get("writer", ""),
+            mangabaka_authors,
+        )
+        penciller = self._merge_people_strings(
+            anilist_people.get("penciller", ""),
+            mangabaka_artists,
+        )
+        inker = self._merge_people_strings(
+            anilist_people.get("inker", ""),
+            mangabaka_artists,
+        )
+        coverartist = self._merge_people_strings(
+            anilist_people.get("coverartist", ""),
+            mangabaka_artists,
+        )
+        letterer = anilist_people.get("letterer", "")
 
         publisher = self._extract_publisher(series.get("publishers"), series.get("links"))
 
@@ -160,7 +181,7 @@ class MangaBakaClient:
 
         age_rating = self._map_content_rating(series.get("content_rating"))
 
-        # Only trust final_volume if the series is finished
+        # Only trust final_volume if the series is finished.
         status = (series.get("status") or "").lower()
         count = ""
         if status in {"completed", "cancelled"}:
@@ -176,17 +197,17 @@ class MangaBakaClient:
             "year": year,
             "month": month,
             "day": day,
-            "writer": authors,
+            "writer": writer,
             "publisher": publisher,
             "genre": genre,
             "tags": tags,
             "web": web,
             "seriesgroup": "",
             "agerating": age_rating,
-            "penciller": artists,
-            "inker": artists,
-            "coverartist": artists,
-            "letterer": "",
+            "penciller": penciller,
+            "inker": inker,
+            "coverartist": coverartist,
+            "letterer": letterer,
         }
 
     def _extract_localized_series(self, series: Dict[str, Any]) -> str:
@@ -461,6 +482,118 @@ class MangaBakaClient:
         ]
         unique_links = list(dict.fromkeys(valid_links))
         return " ".join(unique_links)
+
+    def _fetch_anilist_people(self, series: Dict[str, Any]) -> Dict[str, str]:
+        """Fetch enriched staff fields from AniList using MangaBaka's linked ID.
+
+        MangaBaka may expose a linked AniList ID under ``source.anilist.id``.
+        When present, this method performs a lightweight AniList lookup and
+        returns the richer people fields parsed by ``AniListClient``.
+
+        Any AniList lookup failure is treated as non-fatal so MangaBaka metadata
+        fetching can still succeed with its native author and artist fields.
+
+        Args:
+            series: Raw MangaBaka series object.
+
+        Returns:
+            A dict containing zero or more of the following lowercase keys:
+            ``writer``, ``penciller``, ``inker``, ``coverartist``, ``letterer``.
+        """
+        anilist_id = self._extract_anilist_id(series)
+        if anilist_id is None:
+            return {}
+
+        try:
+            raw = self._anilist_client.fetch_by_id(anilist_id)
+        except SourceFetchError as exc:
+            log(
+                "DEBUG",
+                f"[MangaBaka] AniList enrichment failed for id={anilist_id}: {exc}",
+            )
+            return {}
+        except Exception:
+            log(
+                "ERROR",
+                f"[MangaBaka] Unexpected AniList enrichment error for id={anilist_id}",
+                exc_info=True,
+            )
+            return {}
+
+        return {
+            "writer": raw.get("writer", ""),
+            "penciller": raw.get("penciller", ""),
+            "inker": raw.get("inker", ""),
+            "coverartist": raw.get("coverartist", ""),
+            "letterer": raw.get("letterer", ""),
+        }
+
+    @staticmethod
+    def _extract_anilist_id(series: Dict[str, Any]) -> Optional[int]:
+        """Extract the linked AniList ID from a MangaBaka series object.
+
+        Expected MangaBaka shape:
+            ``source -> anilist -> id``
+
+        Args:
+            series: Raw MangaBaka series object.
+
+        Returns:
+            The AniList ID as an integer, or ``None`` if unavailable or invalid.
+        """
+        source = series.get("source")
+        if not isinstance(source, dict):
+            return None
+
+        anilist = source.get("anilist")
+        if not isinstance(anilist, dict):
+            return None
+
+        raw_id = anilist.get("id")
+        try:
+            return int(raw_id)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _split_people_string(value: str) -> List[str]:
+        """Split a comma-separated people field into cleaned name entries.
+
+        Args:
+            value: Comma-separated people string.
+
+        Returns:
+            A list of cleaned names in original order.
+        """
+        if not value:
+            return []
+
+        names: List[str] = []
+        for part in value.split(","):
+            name = part.strip()
+            if name:
+                names.append(name)
+        return names
+
+    def _merge_people_strings(self, primary: str, secondary: str) -> str:
+        """Merge two comma-separated people strings with stable deduplication.
+
+        The primary value is kept first. This is used so AniList's richer staff
+        mapping can take precedence, while MangaBaka author and artist data still
+        acts as fallback and supplement.
+
+        Args:
+            primary: Preferred comma-separated people string.
+            secondary: Fallback comma-separated people string.
+
+        Returns:
+            A merged comma-separated string with duplicates removed.
+        """
+        primary_names = self._split_people_string(primary)
+        secondary_names = self._split_people_string(secondary)
+
+        merged_names = list(dict.fromkeys([*primary_names, *secondary_names]))
+        return ", ".join(merged_names)
 
     @staticmethod
     def _map_content_rating(content_rating: Any) -> str:

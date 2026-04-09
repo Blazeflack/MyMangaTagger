@@ -137,8 +137,25 @@ class AniListClient:
                 f"[AniList] Could not extract media ID from URL: {url}"
             )
 
-        media = self._fetch_media(media_id)
+        return self.fetch_by_id(media_id)
 
+    def fetch_by_id(self, media_id: int) -> Dict[str, str]:
+        """Fetch and normalize raw metadata from an AniList media ID.
+
+        This is useful when another source already provides a linked AniList ID,
+        so the caller does not need to construct an AniList URL first.
+
+        Args:
+            media_id: Numeric AniList manga/media ID.
+
+        Returns:
+            A dict of pre-normalized metadata fields using lowercase keys.
+
+        Raises:
+            SourceFetchError: If the network request fails or no Media node is
+                returned for the provided ID.
+        """
+        media = self._fetch_media(media_id)
         return self._parse(media)
 
     # ------------------------------------------------------------------
