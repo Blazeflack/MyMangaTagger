@@ -21,3 +21,12 @@ Thumbs.db
 MyMangaTagger/settings.json
 MyMangaTagger/mymangatagger.log
 MyMangaTagger/mymangatagger.log.*
+
+# Ignore MyMangaTagger/sources except specific files
+MyMangaTagger/sources/*
+MyMangaTagger/sources/_template.py
+MyMangaTagger/sources/anilist.py
+MyMangaTagger/sources/base.py
+MyMangaTagger/sources/loader.py
+MyMangaTagger/sources/mangabaka.py
+MyMangaTagger/sources/router.py
