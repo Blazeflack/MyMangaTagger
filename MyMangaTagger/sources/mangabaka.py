@@ -160,7 +160,11 @@ class MangaBakaClient:
 
         age_rating = self._map_content_rating(series.get("content_rating"))
 
-        count = self._normalize_numeric_string(series.get("final_volume"))
+        # Only trust final_volume if the series is finished
+        status = (series.get("status") or "").lower()
+        count = ""
+        if status in {"completed", "cancelled"}:
+            count = self._normalize_numeric_string(series.get("final_volume"))
 
         return {
             "title": title,
