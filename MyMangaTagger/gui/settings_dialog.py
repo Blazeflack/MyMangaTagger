@@ -197,6 +197,8 @@ class SettingsDialog(tk.Toplevel):
         )
         # Update preview whenever the template changes
         self.template_field.trace_add("write", lambda *_: self._update_filename_preview())
+        self.max_writers_field.trace_add("write", lambda *_: self._update_filename_preview())
+        self.max_genres_field.trace_add("write", lambda *_: self._update_filename_preview())
 
         # Preview label for formatted filename
         tb.Label(
@@ -267,16 +269,35 @@ class SettingsDialog(tk.Toplevel):
         """Generate and display a live preview of the filename template."""
         example_metadata: Dict[str, str] = {
             "title": "Funny Title",
-            "writer": "Awesome Author",
+            "writer": "Author Oni, Author Toucan",
             "seriesgroup": "Great Collection",
             "genre": "Comedy, Romance",
             "series": "Succubus Series",
         }
 
         try:
-            preview = self.formatter.format(example_metadata, Path("Example.cbz"))
+            max_writers_text = self.max_writers_field.get().strip()
+            if max_writers_text:
+                max_writers = max(0, int(max_writers_text))
+            else:
+                max_writers = int(config_manager.get_default("MAX_FILENAME_WRITERS", 2))
+
+            max_genres_text = self.max_genres_field.get().strip()
+            if max_genres_text:
+                max_genres = max(0, int(max_genres_text))
+            else:
+                max_genres = int(config_manager.get_default("MAX_FILENAME_GENRES", 2))
+
+            preview = self.formatter.format(
+                example_metadata,
+                Path("Example.cbz"),
+                template_override=self.template_field.get(),
+                max_writers_override=max_writers,
+                max_genres_override=max_genres,
+            )
         except Exception:
             preview = "Invalid template"
+
         self.preview_var.set(preview or "—")
 
     def _on_mode_change(self) -> None:

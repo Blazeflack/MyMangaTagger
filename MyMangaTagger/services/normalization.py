@@ -126,44 +126,54 @@ class Normalizer:
             force_next = (word == "-")
         return " ".join(result)
 
-    def normalize_writer_field(self, writers_raw: Optional[str]) -> str:
+    def normalize_writer_field(self, writers_raw: Optional[str], max_writers: Optional[int] = None) -> str:
         """
-        Parses a comma-separated writer list, de-duplicates entries,
-        and limits count based on MAX_FILENAME_WRITERS config.
+        Parse a comma-separated writer list, de-duplicate entries,
+        and limit count based on the configured or overridden maximum.
 
         Args:
-            writers_raw (Optional[str]): Comma-separated writer names.
+            writers_raw: Comma-separated writer names.
+            max_writers: Optional override for the maximum number of writers
+                to include before collapsing to "Various Artists".
 
         Returns:
-            str: Joined writer names with ', ' or 'Various Artists' if exceeding limit.
+            Joined writer names with ', ' or 'Various Artists' if exceeding limit.
         """
         if not writers_raw:
             return ""
+
         authors = [a.strip() for a in writers_raw.split(",") if a.strip()]
         unique_authors = list(dict.fromkeys(authors))
-        max_writers = config_manager.max_filename_writers
-        if max_writers == 0 or len(unique_authors) <= max_writers:
+
+        limit = config_manager.max_filename_writers if max_writers is None else max_writers
+        if limit == 0 or len(unique_authors) <= limit:
             return ", ".join(unique_authors)
+
         return "Various Artists"
 
-    def normalize_genre_field(self, genres_raw: Optional[str]) -> str:
+    def normalize_genre_field(self, genres_raw: Optional[str], max_genres: Optional[int] = None) -> str:
         """
-        Parses a comma-separated genre list, de-duplicates entries,
-        and limits count based on MAX_FILENAME_GENRES config.
+        Parse a comma-separated genre list, de-duplicate entries,
+        and limit count based on the configured or overridden maximum.
 
         Args:
-            genres_raw (Optional[str]): Comma-separated genre names.
+            genres_raw: Comma-separated genre names.
+            max_genres: Optional override for the maximum number of genres
+                to include before collapsing to "Various Genres".
 
         Returns:
-            str: Joined genre names with ', ' or 'Various Genres' if exceeding limit.
+            Joined genre names with ', ' or 'Various Genres' if exceeding limit.
         """
         if not genres_raw:
             return ""
+
         genres = [g.strip() for g in genres_raw.split(",") if g.strip()]
         unique_genres = list(dict.fromkeys(genres))
-        max_genres = config_manager.max_filename_genres
-        if max_genres == 0 or len(unique_genres) <= max_genres:
+
+        limit = config_manager.max_filename_genres if max_genres is None else max_genres
+        if limit == 0 or len(unique_genres) <= limit:
             return ", ".join(unique_genres)
+
         return "Various Genres"
 
     def sanitize_path_component(self, name: Optional[str]) -> str:
