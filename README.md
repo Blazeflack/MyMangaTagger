@@ -2,7 +2,7 @@
 
 [![MyMangaTagger GUI Preview](images/gui-preview-small.png)](images/gui-preview.png)
 
-**MyMangaTagger** is a desktop tool for managing metadata in `.cbz` files, with support for fetching information from [Anilist](https://anilist.co) (more can and will likely be added). It is heavily inspired by [MangaManager](https://github.com/MangaManagerORG/Manga-Manager) and is purely a learning and experimentation project for me, with heavy use of AI assistance.
+**MyMangaTagger** is a desktop tool for managing metadata in `.cbz` files, with support for fetching information from [AniList](https://anilist.co) and [MangaBaka](https://mangabaka.org/). It is heavily inspired by [MangaManager](https://github.com/MangaManagerORG/Manga-Manager) and is purely a learning and experimentation project for me, with heavy use of AI assistance.
 
 The app provides a drag-and-drop GUI that allows you to load manga, fetch metadata, edit fields, and save the results directly inside each archive via `ComicInfo.xml`.
 
@@ -12,7 +12,8 @@ The app provides a drag-and-drop GUI that allows you to load manga, fetch metada
 
 - Load `.cbz` or `.zip` files from folder or via drag-and-drop
 - Fetch metadata from:
-  - `Anilist.co` (GraphQL API with JSON response)
+  - `AniList.co` (GraphQL API with JSON response)
+  - `MangaBaka.org` (OpenAPI with JSON response)
 - Batch-apply metadata to multiple files from a single URL
 - Edit metadata in a user-friendly GUI
 - Add new cover image (will add selected file as `00000!__cover.{ext}` to archive when processed)
@@ -20,7 +21,7 @@ The app provides a drag-and-drop GUI that allows you to load manga, fetch metada
   - Set the pattern via the settings dialog
   - Live preview and "Reset" button included
 - After editing, rename and organize files during processing
-  - If moving of files is enabled, processed files are placed in the configured output folder. By default it uses `\Processed\...` relative to the source location of the file. A fixed and absolute path can also be configured.
+  - If moving of files is enabled, processed files are placed in the configured output folder. By default, it uses `\Processed\...` relative to the source location of the file. A fixed and absolute path can also be configured.
     - Files with a `Series` value will be placed in `\OUTPUT_FOLDER\<SERIES_NAME>\...`
 - Save metadata as `ComicInfo.xml` inside archive
 
@@ -46,7 +47,7 @@ python run.pyw
 
 1. Load or drop `.cbz` or `.zip` files. `.zip` files are automatically renamed to `.cbz`.
 2. Select one or more files.
-3. Select fetching mode (Per-file / Single URL -> Apply to all).
+3. Select fetching mode (Per-file / Single URL → Apply to all).
 4. Select source and click the Fetch button.
 5. Dialog popup appears showing the filename. When using "Per-file" mode the filename is automatically copied to clipboard for quick search on source site.
 6. Paste the URL for the file shown in the dialog. The dialog auto-accepts when a valid link is pasted or dropped.
@@ -145,7 +146,9 @@ MyMangaTagger/
     ├── base.py                # Abstract base class/interface for metadata sources
     ├── loader.py              # Auto-import for drop-in source discovery
     ├── router.py              # URL-routing to the correct concrete source
-    └── anilist.py             # Adapter for integrating Anilist as a metadata source
+    ├── _template.py           # Template file to be copied for integrating new metadata source
+    ├── anilist.py             # Adapter for integrating Anilist as a metadata source
+    └── mangabaka.py           # Adapter for integrating MangaBaka as a metadata source
 ```
 
 ---
