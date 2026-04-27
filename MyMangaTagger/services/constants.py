@@ -116,4 +116,5 @@ PUBLISHER_DOMAIN_MAP = {
     "onepeacebooks.com": "One Peace Books",
     "kaitenbooks.com": "Kaiten Books",
     "j-novel.club": "J-Novel Club",
+    "squareenixmangaandbooks.square-enix-games.com": "Square Enix Manga",
 }
