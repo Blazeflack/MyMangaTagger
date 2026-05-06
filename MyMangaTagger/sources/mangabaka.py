@@ -303,9 +303,9 @@ class MangaBakaClient:
         """Extract the most relevant publisher.
 
         Priority order:
-            1. Officially declared English publisher from `publishers`.
-            2. English publisher inferred from `external_links` via
+            1. English publisher inferred from `external_links` via
                PUBLISHER_DOMAIN_MAP.
+            2. Officially declared English publisher from `publishers`.
             3. First non-empty non-English publisher from `publishers`.
 
         Args:
@@ -317,6 +317,10 @@ class MangaBakaClient:
         """
         english_name = ""
         fallback_name = ""
+
+        mapped_name = self._extract_publisher_from_links(external_links)
+        if mapped_name:
+            return mapped_name
 
         if isinstance(publishers, list):
             for entry in publishers:
@@ -341,9 +345,7 @@ class MangaBakaClient:
         if english_name:
             return english_name
 
-        mapped_name = self._extract_publisher_from_links(external_links)
-        if mapped_name:
-            return mapped_name
+
 
         return fallback_name
 
