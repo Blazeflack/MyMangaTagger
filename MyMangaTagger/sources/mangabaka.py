@@ -173,7 +173,10 @@ class MangaBakaClient:
         )
         letterer = anilist_people.get("letterer", "")
 
-        publisher = self._extract_publisher(series.get("publishers"), series.get("links"))
+        publisher = self._extract_publisher(
+            series.get("publishers"),
+            series.get("links_v2")
+        )
 
         genre = self._extract_genres(series)
         tags = self._extract_tags(series)
@@ -310,7 +313,7 @@ class MangaBakaClient:
 
         Args:
             publishers: Raw `publishers` field from the API.
-            external_links: Raw external links field from the API.
+            external_links: Raw `links_v2` field from the API.
 
         Returns:
             Publisher name, or empty string if no suitable publisher is found.
@@ -318,6 +321,8 @@ class MangaBakaClient:
         english_name = ""
         fallback_name = ""
 
+        # Prefer curated publisher-domain mappings from external_links, because these
+        # usually point at the exact English publisher page when available.
         mapped_name = self._extract_publisher_from_links(external_links)
         if mapped_name:
             return mapped_name
@@ -345,21 +350,19 @@ class MangaBakaClient:
         if english_name:
             return english_name
 
-
-
         return fallback_name
 
     def _extract_publisher_from_links(self, external_links: Any) -> str:
-        """Infer publisher from external link hostnames.
+        """Infer publisher from MangaBaka links_v2 hostnames.
 
         Expects MangaBaka API format:
-            - list[str] containing URLs
+            - list[dict] where each dict may contain a `url` value
 
-        Matches external link domains against PUBLISHER_DOMAIN_MAP and returns
-        the mapped English publisher name when a match is found.
+        Matches link domains against PUBLISHER_DOMAIN_MAP and returns the mapped
+        English publisher name when a match is found.
 
         Args:
-            external_links: Raw external links field from the API.
+            external_links: Raw `links_v2` field from the API.
 
         Returns:
             Mapped English publisher name, or empty string if no match is found.
@@ -367,11 +370,8 @@ class MangaBakaClient:
         if not isinstance(external_links, list):
             return ""
 
-        for url in external_links:
-            if not isinstance(url, str):
-                continue
-
-            url = self.normalizer.normalize_whitespace(url)
+        for link in external_links:
+            url = self._extract_link_v2_url(link)
             if not url:
                 continue
 
@@ -485,18 +485,15 @@ class MangaBakaClient:
         if anilist_url:
             curated_links.append(anilist_url)
 
-        links = series.get("links")
+        links = series.get("links_v2")
         if isinstance(links, list):
             for link in links:
-                if not isinstance(link, str):
+                url = self._extract_link_v2_url(link)
+                if not url:
                     continue
 
-                normalized_link = self.normalizer.normalize_whitespace(link)
-                if not normalized_link:
-                    continue
-
-                if self._is_publisher_domain_link(normalized_link):
-                    curated_links.append(normalized_link)
+                if self._is_publisher_domain_link(url):
+                    curated_links.append(url)
 
         unique_links = list(dict.fromkeys(curated_links))
         return " ".join(unique_links)
@@ -532,6 +529,20 @@ class MangaBakaClient:
             return ""
 
         return f"https://anilist.co/manga/{anilist_id}"
+
+    def _extract_link_v2_url(self, link: Any) -> str:
+        """Extract a normalized URL from a MangaBaka links_v2 entry.
+
+        Args:
+            link: Raw links_v2 entry from the API.
+
+        Returns:
+            Normalized URL string, or an empty string if unavailable.
+        """
+        if not isinstance(link, dict):
+            return ""
+
+        return self.normalizer.normalize_whitespace(link.get("url"))
 
     def _is_publisher_domain_link(self, url: str) -> bool:
         """Return whether a URL belongs to one of the mapped publisher domains.
