@@ -117,4 +117,5 @@ PUBLISHER_DOMAIN_MAP = {
     "kaitenbooks.com": "Kaiten Books",
     "j-novel.club": "J-Novel Club",
     "squareenixmangaandbooks.square-enix-games.com": "Square Enix Manga",
+    "global.manga-up.com": "Manga UP! Global",
 }
