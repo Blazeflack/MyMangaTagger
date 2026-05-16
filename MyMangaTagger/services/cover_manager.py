@@ -145,7 +145,7 @@ class CoverManager:
             image: Image.Image,
             canvas_width: int,
             canvas_height: int,
-            bg_color: str = "#dddddd"
+            bg_color: str = "#222222"
     ) -> Image.Image:
         """
         Return a PIL.Image.Image resized/padded to fit the canvas, preserving aspect ratio and centering.
