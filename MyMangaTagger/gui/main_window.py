@@ -27,7 +27,7 @@ from services.cover_manager import CoverManager
 from gui.log_viewer import LogViewer
 from gui.panels.file_list_panel import FileListPanel
 from gui.panels.cover_panel import CoverPanel
-from gui.panels.control_panel import ControlPanel
+from gui.panels.control_panel import CoverActionsPanel, MetadataActionsPanel
 from gui.settings_dialog import SettingsDialog
 from gui.url_dialog import UrlDialog
 from gui.batch_apply_dialog import BatchApplyDialog
@@ -133,36 +133,48 @@ class MainWindow:
         tb.Button(header, text="Settings", command=self._on_settings, bootstyle="info-outline"
                   ).pack(side=tk.RIGHT, padx=(0, 10), pady=(10,0))
 
-        # --- Top row: Cover Preview (left) and Controls (right) ---
-        top_row = tb.Frame(left_pane)
-        top_row.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
+        # --- Selected file / cover area ---
+        cover_area = tb.LabelFrame(left_pane, text="Selected File / Cover")
+        cover_area.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
 
-        # Cover Preview (LabelFrame, fixed width)
+        # Inner frame handles padding because ttkbootstrap LabelFrame padding
+        # behavior differs between versions.
+        cover_area_inner = tb.Frame(cover_area, padding=8)
+        cover_area_inner.pack(fill=tk.BOTH, expand=True)
+
+        # Cover preview stays on the left at the configured thumbnail size.
         self.cover_panel = CoverPanel(
-            top_row,
+            cover_area_inner,
             style=self.style,
             get_thumbnail=self.cover.get_thumbnail,
             on_drop_cover=self._on_drop_cover_cb,
             width=constants.THUMBNAIL_WIDTH,
             height=constants.THUMBNAIL_HEIGHT,
         )
-        self.cover_panel.frame.pack(side=tk.LEFT, padx=(0, 5), fill=tk.Y)
+        self.cover_panel.frame.pack(side=tk.LEFT, padx=(30, 0), fill=tk.Y)
 
-        # Controls (right of cover preview)
-        self.control_panel = ControlPanel(
-            top_row,
+        # Cover controls stay beside the preview, but no longer draw a nested frame.
+        self.cover_actions_panel = CoverActionsPanel(
+            cover_area_inner,
+            style=self.style,
+            on_set_cover=self._set_cover_cb,
+            on_reset_cover=self._reset_cover_cb,
+            get_current_cbz_path=lambda: self.cover_panel.current_path,
+        )
+        self.cover_actions_panel.pack(side=tk.LEFT, fill=tk.Y, anchor=tk.N, padx=(30,0))
+
+        # --- Metadata & file controls below the cover area ---
+        self.metadata_actions_panel = MetadataActionsPanel(
+            left_pane,
             style=self.style,
             on_fetch=self._on_fetch,
             on_process=self._on_process,
             on_toggle_rename=self._on_toggle_rename,
             on_toggle_move=self._on_toggle_move,
-            on_set_cover=self._set_cover_cb,
-            on_reset_cover=self._reset_cover_cb,
-            get_current_cbz_path=lambda: self.cover_panel.current_path,
         )
-        self.control_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.metadata_actions_panel.pack(side=tk.TOP, fill=tk.X, padx=5, pady=(0, 6))
 
-        # --- File Listbox (fills remaining space in left pane) ---
+        # --- File Listbox (fills remaining space at the bottom of the left pane) ---
         self.file_list_panel = FileListPanel(
             left_pane,
             style=self.style,
@@ -712,7 +724,7 @@ class MainWindow:
             return
 
         # --- Fetch Mode branching: single URL apply vs per-file ---
-        fetch_mode = self.control_panel.get_fetch_mode()
+        fetch_mode = self.metadata_actions_panel.get_fetch_mode()
         if fetch_mode == constants.FETCH_MODE_SINGLE_APPLY and len(selected_paths) > 1:
             self._on_fetch_single_apply(mode, selected_paths)
             return
@@ -941,7 +953,7 @@ class MainWindow:
 
             data = self.metadata.get(path, {})
             custom_cover_path = self.cover.custom_covers.get(path.resolve())
-            cover_mode = self.control_panel.get_cover_mode()
+            cover_mode = self.cover_actions_panel.get_cover_mode()
             overwrite_existing_cover = (cover_mode == "replace")
 
             # 1) Write updated ComicInfo.xml and (optionally) inject/replace cover

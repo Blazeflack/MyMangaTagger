@@ -19,10 +19,10 @@ APP_WIDTH = 1200
 APP_HEIGHT = 1000
 APP_MIN_WIDTH = 1200
 APP_MIN_HEIGHT = 1000
-LEFT_PANE_MIN_WIDTH = 500
+LEFT_PANE_MIN_WIDTH = 450
 RIGHT_PANE_MIN_WIDTH = 450
-THUMBNAIL_WIDTH = 200
-THUMBNAIL_HEIGHT = 300
+THUMBNAIL_WIDTH = 170
+THUMBNAIL_HEIGHT = 255
 
 #GUI: FileListPanel
 FILELIST_DROP_LABEL = "📂 Drop files here or click to load folder"
@@ -52,7 +52,7 @@ FETCH_MODE_SINGLE_APPLY: str = "single_apply"
 # Human-friendly labels shown in the OptionMenu (label, value)
 FETCH_MODE_OPTIONS: list[tuple[str, str]] = [
     ("Per-file", FETCH_MODE_PER_FILE),
-    ("Single URL → Apply to all", FETCH_MODE_SINGLE_APPLY),
+    ("One URL → All", FETCH_MODE_SINGLE_APPLY),
 ]
 
 # Metadata: Genre
