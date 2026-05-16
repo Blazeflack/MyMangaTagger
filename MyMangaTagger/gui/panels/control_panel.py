@@ -199,22 +199,6 @@ class MetadataActionsPanel:
             value=constants.FETCH_MODE_OPTIONS[0][0]
         )
 
-        # Row 1, column 1: Source selector.
-        source_cell = tb.Frame(inner_metadata)
-        source_cell.grid(row=0, column=0, sticky="ew", padx=(0, 8), pady=(0, 15))
-        source_cell.columnconfigure(1, weight=1)
-
-        tb.Label(source_cell, text="Source:").grid(row=0, column=0, sticky="w", padx=(0, 5))
-
-        source_menu = tb.OptionMenu(
-            source_cell,
-            self.source_var,
-            self.source_var.get(),
-            *sources,
-        )
-        source_menu.configure(width=12, bootstyle="light-outline")
-        source_menu.grid(row=0, column=1, sticky="ew")
-
         # Row 1: Source selector on the left, fetch action on the right.
         source_cell = tb.Frame(inner_metadata)
         source_cell.grid(row=0, column=0, sticky="ew", padx=(0, 8), pady=(0, 15))
