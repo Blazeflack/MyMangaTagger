@@ -31,6 +31,17 @@ from gui.panels.control_panel import CoverActionsPanel, MetadataActionsPanel
 from gui.settings_dialog import SettingsDialog
 from gui.url_dialog import UrlDialog
 from gui.batch_apply_dialog import BatchApplyDialog
+from gui.augment_metadata_dialog import (
+    AugmentMetadataPreviewDialog,
+    AugmentMetadataUrlDialog,
+)
+
+from augmenters.base import (
+    VolumeAugmentationError,
+    apply_patches_to_metadata,
+    build_preview_rows,
+    get_augmenter_for_url,
+)
 
 from sources.router import RouterSource
 
@@ -168,6 +179,7 @@ class MainWindow:
             left_pane,
             style=self.style,
             on_fetch=self._on_fetch,
+            on_augment=self._on_augment_metadata,
             on_process=self._on_process,
             on_toggle_rename=self._on_toggle_rename,
             on_toggle_move=self._on_toggle_move,
@@ -908,6 +920,125 @@ class MainWindow:
             )
 
         threading.Thread(target=task, daemon=True).start()
+
+    def _on_augment_metadata(self) -> None:
+        """Prompt for a publisher URL and start volume metadata augmentation."""
+        selected_paths = self.get_selected_paths()
+        if not selected_paths:
+            self.status_reporter(
+                line2="[AUGMENT] No files selected for metadata augmentation.",
+                level2="DEBUG",
+            )
+            return
+
+        dialog = AugmentMetadataUrlDialog(self.root, selected_count=len(selected_paths))
+        url = dialog.result
+        if not url:
+            self.status_reporter(
+                line2="[AUGMENT] Cancelled metadata augmentation.",
+                level2="DEBUG",
+            )
+            return
+
+        augmenter = get_augmenter_for_url(url)
+        if augmenter is None:
+            self.status_reporter(
+                line2="[AUGMENT] Unsupported publisher URL.",
+                level2="WARN",
+            )
+            return
+
+        self.status_reporter(
+            line1=f"Fetching volume metadata from {augmenter.source_name}...",
+            line2=f"Preparing preview for {len(selected_paths)} selected file(s).",
+            level1="NONE",
+            level2="DEBUG",
+        )
+
+        threading.Thread(
+            target=lambda: self._run_augment_metadata(augmenter, url, selected_paths),
+            daemon=True,
+        ).start()
+
+    def _run_augment_metadata(self, augmenter, url: str, paths: list[Path]) -> None:
+        """Fetch publisher patches, show preview, and apply them if confirmed.
+
+        Args:
+            augmenter: Publisher-specific augmenter instance.
+            url: Publisher series URL entered by the user.
+            paths: Selected files to preview and potentially patch.
+        """
+        try:
+            patches = augmenter.fetch_patches(url)
+        except VolumeAugmentationError as exc:
+            self.status_reporter(
+                line1="Ready.",
+                line2=str(exc),
+                level1="NONE",
+                level2="WARN",
+            )
+            return
+        except Exception:
+            log("ERROR", f"[AUGMENT] Unexpected error while augmenting from URL: {url}", exc_info=True)
+            self.status_reporter(
+                line1="Ready.",
+                line2="[AUGMENT] Unexpected error while fetching volume metadata.",
+                level1="NONE",
+                level2="ERROR",
+            )
+            return
+
+        rows = build_preview_rows(paths, self.metadata, patches)
+        should_apply = self._prompt_augment_preview(rows, augmenter.source_name)
+        if not should_apply:
+            self.status_reporter(
+                line1="Ready.",
+                line2="[AUGMENT] Cancelled before applying changes.",
+                level1="NONE",
+                level2="DEBUG",
+            )
+            return
+
+        applied_count = apply_patches_to_metadata(paths, self.metadata, patches)
+        if self.current_index is not None:
+            self.root.after(0, lambda: self._on_selection(self.current_index))
+
+        self.status_reporter(
+            line1="Ready.",
+            line2=f"[AUGMENT] Applied volume metadata to {applied_count} file(s).",
+            level1="NONE",
+            level2="INFO",
+        )
+
+    def _prompt_augment_preview(
+        self,
+        rows,
+        augmenter_name: str,
+    ) -> bool:
+        """Show the augmentation preview dialog on the Tk main thread.
+
+        Args:
+            rows: Preview rows to show.
+            augmenter_name: Human-friendly publisher augmenter name.
+
+        Returns:
+            True if the user confirms Apply, otherwise False.
+        """
+        done = threading.Event()
+        result_holder: dict[str, bool] = {"result": False}
+
+        def show_dialog() -> None:
+            dialog = AugmentMetadataPreviewDialog(
+                self.root,
+                rows=rows,
+                augmenter_name=augmenter_name,
+            )
+            result_holder["result"] = dialog.result
+            done.set()
+
+        self.root.after(0, show_dialog)
+        done.wait()
+        return result_holder["result"]
 
     def _on_process(self) -> None:
         """

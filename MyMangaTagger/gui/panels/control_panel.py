@@ -129,17 +129,18 @@ class CoverActionsPanel:
 
 class MetadataActionsPanel:
     """
-    Panel providing metadata fetch and file processing actions.
+    Panel providing metadata fetch, augmentation, and file processing actions.
 
     Contains source selection, fetch mode selection, metadata fetch action,
-    rename/move toggles, and the processing action. The internal grid uses two
-    columns so a future Augment Metadata action can be added without changing
-    the overall layout structure.
+    volume metadata augmentation, rename/move toggles, and the processing
+    action. The internal grid uses two columns so the action buttons line up
+    on the right side.
 
     Args:
         parent: Parent Tkinter container.
         style: The ttkbootstrap style object for widget theming and styling.
         on_fetch: Callback taking a string ("Auto" or available source name).
+        on_augment: Callback when "Augment Metadata" is pressed.
         on_process: Callback when "Process Selected Files" is pressed.
         on_toggle_rename: Callback when renaming is toggled.
         on_toggle_move: Callback when moving is toggled.
@@ -157,6 +158,7 @@ class MetadataActionsPanel:
         parent: tk.Widget,
         style: tb.Style,
         on_fetch: Callable[[str], None],
+        on_augment: Callable[[], None],
         on_process: Callable[[], None],
         on_toggle_rename: Callable[[bool], None],
         on_toggle_move: Callable[[bool], None],
@@ -168,6 +170,7 @@ class MetadataActionsPanel:
             style: The ttkbootstrap style object for widget theming and styling.
             on_fetch: Callback for the "Fetch Metadata" button; receives selected
                 source as "Auto" or any available source.
+            on_augment: Callback for the "Augment Metadata" button.
             on_process: Callback when "Process Selected Files" is pressed.
             on_toggle_rename: Callback when renaming is toggled.
             on_toggle_move: Callback when moving is toggled.
@@ -183,8 +186,8 @@ class MetadataActionsPanel:
         inner_metadata = tb.Frame(metadata_frame, padding=8)
         inner_metadata.pack(fill=tk.BOTH, expand=True)
 
-        # Two balanced columns make the current controls look intentional and
-        # preserve a natural slot for a future Augment Metadata button.
+        # Two balanced columns make the controls read as rows of label/action
+        # pairs, while keeping the action buttons aligned on the right.
         inner_metadata.columnconfigure(0, weight=1)
         inner_metadata.columnconfigure(1, weight=0, minsize=155)
 
@@ -221,8 +224,7 @@ class MetadataActionsPanel:
             command=lambda: on_fetch(self.source_var.get()),
         ).grid(row=0, column=1, sticky="ew", padx=(8, 0), pady=(0, 10))
 
-        # Row 2: Fetch mode selector on the left. The right cell is intentionally
-        # reserved for the later Augment Metadata button, but no button is added yet.
+        # Row 2: Fetch mode selector on the left, augmentation action on the right.
         mode_cell = tb.Frame(inner_metadata)
         mode_cell.grid(row=1, column=0, sticky="ew", padx=(0, 8), pady=(0, 15))
         mode_cell.columnconfigure(1, weight=1)
@@ -237,6 +239,12 @@ class MetadataActionsPanel:
         )
         mode_menu.configure(width=12, bootstyle="light-outline")
         mode_menu.grid(row=0, column=1, sticky="ew")
+
+        tb.Button(
+            inner_metadata,
+            text="Augment Metadata",
+            command=on_augment,
+        ).grid(row=1, column=1, sticky="ew", padx=(8, 0), pady=(0, 10))
 
         # Row 3: Rename/move options on the left, process action on the right.
         options_cell = tb.Frame(inner_metadata)
