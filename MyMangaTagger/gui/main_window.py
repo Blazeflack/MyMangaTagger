@@ -737,7 +737,7 @@ class MainWindow:
 
         # --- Fetch Mode branching: single URL apply vs per-file ---
         fetch_mode = self.metadata_actions_panel.get_fetch_mode()
-        if fetch_mode == constants.FETCH_MODE_SINGLE_APPLY and len(selected_paths) > 1:
+        if fetch_mode == constants.FETCH_MODE_SINGLE_APPLY:
             self._on_fetch_single_apply(mode, selected_paths)
             return
 
