@@ -707,7 +707,7 @@ class MangaBakaClient:
 
         mapping = {
             "safe": "Unknown",
-            "suggestive": "MA 15+",
+            "suggestive": "MA15+",
             "erotica": "Adults Only 18+",
             "pornographic": "X18+",
         }
