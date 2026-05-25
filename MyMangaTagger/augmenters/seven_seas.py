@@ -125,9 +125,9 @@ class SevenSeasAugmenter(BaseVolumeAugmenter):
     def _extract_title_and_summary(description_block: str) -> tuple[str, str]:
         """Extract Seven Seas volume title and summary from description content.
 
-        Seven Seas volume pages commonly use the first paragraph in
-        ``div.description-content`` as a short subtitle or promotional heading.
-        Remaining paragraphs are treated as the actual summary.
+        Seven Seas volume pages usually place an optional short subtitle or
+        promotional heading before the real summary. Some pages, however, only
+        contain a single summary paragraph and no volume-specific title.
 
         Args:
             description_block: HTML fragment from ``div.description-content``.
@@ -146,7 +146,7 @@ class SevenSeasAugmenter(BaseVolumeAugmenter):
         )
 
         paragraphs = [
-            strip_html(paragraph)
+            normalize_whitespace(strip_html(paragraph))
             for paragraph in paragraph_matches
         ]
         paragraphs = [paragraph for paragraph in paragraphs if paragraph]
@@ -154,10 +154,54 @@ class SevenSeasAugmenter(BaseVolumeAugmenter):
         if not paragraphs:
             return "", ""
 
-        volume_title = normalize_whitespace(paragraphs[0])
+        first_paragraph = paragraphs[0]
+
+        # A single long/narrative paragraph is the summary, not a title.
+        if len(paragraphs) == 1:
+            if SevenSeasAugmenter._looks_like_summary(first_paragraph):
+                return "", first_paragraph
+            return first_paragraph, ""
+
+        # Some pages have no heading and start directly with the summary.
+        if SevenSeasAugmenter._looks_like_summary(first_paragraph):
+            return "", "\n\n".join(paragraphs).strip()
+
+        volume_title = first_paragraph
         summary = "\n\n".join(paragraphs[1:]).strip()
 
         return volume_title, summary
+
+    @staticmethod
+    def _looks_like_summary(text: str) -> bool:
+        """Return whether a paragraph looks like descriptive summary text.
+
+        Seven Seas subtitles and promo headings are usually short. Real summaries
+        tend to be longer, contain multiple words, and often include sentence
+        punctuation. This heuristic prevents a summary-only description block
+        from being appended to the fetched title as a false volume subtitle.
+
+        Args:
+            text: Plain paragraph text to inspect.
+
+        Returns:
+            True if the text is likely a summary paragraph.
+        """
+        cleaned_text = normalize_whitespace(text)
+        if not cleaned_text:
+            return False
+
+        words = cleaned_text.split()
+        sentence_marks = sum(cleaned_text.count(mark) for mark in ".!?")
+
+        # Long paragraphs are almost certainly summaries.
+        if len(words) >= 18:
+            return True
+
+        # Multiple sentence endings are also a strong summary signal.
+        if sentence_marks >= 2:
+            return True
+
+        return False
 
     @staticmethod
     def _extract_number(url: str, title: str) -> str:
