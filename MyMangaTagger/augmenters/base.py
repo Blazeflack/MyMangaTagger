@@ -30,22 +30,26 @@ class VolumeAugmentationError(Exception):
 class VolumeMetadataPatch:
     """Metadata patch for one numbered volume.
 
+    Date fields use ``None`` to mean "leave the existing value unchanged".
+    Empty strings are valid patch values and intentionally clear existing
+    metadata values.
+
     Attributes:
         number: ComicInfo volume number used to match selected files.
         title: Optional volume-specific title suffix to append to the current title.
         summary: Optional replacement summary for the volume.
-        year: Optional release year.
-        month: Optional release month.
-        day: Optional release day.
+        year: Optional release year. None leaves the existing value unchanged.
+        month: Optional release month. None leaves the existing value unchanged.
+        day: Optional release day. None leaves the existing value unchanged.
         source_url: Publisher volume URL used to build this patch, if known.
     """
 
     number: str
     title: str = ""
     summary: str = ""
-    year: str = ""
-    month: str = ""
-    day: str = ""
+    year: str | None = None
+    month: str | None = None
+    day: str | None = None
     source_url: str = ""
 
 
@@ -749,7 +753,7 @@ def apply_patch_to_metadata(
 
     for key in ("year", "month", "day"):
         value = getattr(patch, key)
-        if value:
+        if value is not None:
             updated[key] = value
 
     return updated
