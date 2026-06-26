@@ -102,7 +102,7 @@ class OnePeaceBooksAugmenter(BaseVolumeAugmenter):
 
     @staticmethod
     def _extract_volume_entries(page_html: str) -> list[tuple[str, str]]:
-        """Extract paired volume detail and outline blocks from a page.
+        """Extract volume detail from a page.
 
         Args:
             page_html: Full One Peace Books page HTML.
@@ -112,13 +112,22 @@ class OnePeaceBooksAugmenter(BaseVolumeAugmenter):
         """
         entries: list[tuple[str, str]] = []
 
-        # Each volume starts with a detail block and is followed by the summary
-        # outline block. The next detail block marks the end of the current
-        # entry.
+        # Match the start tags by class name, then use lookaheads to stop at the
+        # next known block boundary. This avoids accidentally consuming the next
+        # volume when an outline block has fewer closing divs than expected.
+        class_attr = r"class=[\"'][^\"']*\b{}\b[^\"']*[\"']"
+        detail_start = (
+            rf"<div\b(?=[^>]*{class_attr.format('newbook-case-detail')})[^>]*>"
+        )
+        outline_start = (
+            rf"<div\b(?=[^>]*{class_attr.format('newbook-case-outline')})[^>]*>"
+        )
         pattern = (
-            r"(<div\b[^>]*class=[\"'][^\"']*\bnewbook-case-detail\b[^\"']*[\"'][^>]*>.*?</div>\s*</div>)"
-            r"\s*"
-            r"(<div\b[^>]*class=[\"'][^\"']*\bnewbook-case-outline\b[^\"']*[\"'][^>]*>.*?</div>\s*</div>)"
+            rf"({detail_start}.*?)"
+            rf"(?={outline_start})"
+            rf"\s*"
+            rf"({outline_start}.*?)"
+            rf"(?={detail_start}|</section>|$)"
         )
 
         for match in re.finditer(pattern, page_html, flags=re.IGNORECASE | re.DOTALL):
