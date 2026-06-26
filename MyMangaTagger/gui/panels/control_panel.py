@@ -215,7 +215,7 @@ class MetadataActionsPanel:
             self.source_var.get(),
             *sources,
         )
-        source_menu.configure(width=12, bootstyle="light-outline")
+        source_menu.configure(width=20, bootstyle="light-outline")
         source_menu.grid(row=0, column=1, sticky="ew")
 
         tb.Button(
@@ -237,7 +237,7 @@ class MetadataActionsPanel:
             self.fetch_mode_var.get(),
             *[label for label, _ in constants.FETCH_MODE_OPTIONS],
         )
-        mode_menu.configure(width=12, bootstyle="light-outline")
+        mode_menu.configure(width=20, bootstyle="light-outline")
         mode_menu.grid(row=0, column=1, sticky="ew")
 
         tb.Button(
