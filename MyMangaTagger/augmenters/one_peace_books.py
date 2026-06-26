@@ -1,7 +1,5 @@
 # augmenters/one_peace_books.py
 
-# augmenters/one_peace_books.py
-
 """One Peace Books volume metadata augmenter."""
 
 from __future__ import annotations
