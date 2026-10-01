@@ -205,10 +205,10 @@ class AugmentMetadataPreviewDialog(tk.Toplevel):
             "number": 70,
             "title_before": 240,
             "title_after": 260,
-            "summary": 90,
-            "date_before": 100,
-            "date_after": 100,
-            "status": 170,
+            "summary": 80,
+            "date_before": 90,
+            "date_after": 90,
+            "status": 300,
         }
         for column in columns:
             self.tree.heading(column, text=headings[column])
