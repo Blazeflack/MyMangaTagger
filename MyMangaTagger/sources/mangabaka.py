@@ -26,7 +26,7 @@ from sources.base import MetadataSource, SourceFetchError
 # Constants
 # ---------------------------------------------------------------------------
 
-_MANGABAKA_API_BASE = "https://api.mangabaka.dev"
+_MANGABAKA_API_BASE = "https://api.mangabaka.org"
 _MANGABAKA_TIMEOUT = 20
 
 
