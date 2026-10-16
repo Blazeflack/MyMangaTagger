@@ -12,6 +12,7 @@ Provides two classes:
 import html
 import re
 from typing import Any, Callable, Dict, List, Optional, Tuple
+from urllib.parse import urlsplit
 
 import requests
 
@@ -55,7 +56,7 @@ class MangaBakaClient:
 
         Args:
             url: MangaBaka series page URL, for example
-                ``https://mangabaka.org/7546?q=Toradora&single_result_redirect=1``.
+                ``https://mangabaka.org/manga/7546/Toradora``.
 
         Returns:
             A dict of normalized metadata fields using lowercase keys.
@@ -103,7 +104,8 @@ class MangaBakaClient:
         Raises:
             SourceFetchError: On request failure or invalid response payload.
         """
-        api_url = f"{_MANGABAKA_API_BASE}/v1/series/{series_id}"
+        # The full v2 schema provides tag/genre classification and external links.
+        api_url = f"{_MANGABAKA_API_BASE}/v2/series/{series_id}?schema=full"
 
         try:
             log("DEBUG", f"[MangaBaka] GET -> {api_url}")
@@ -141,7 +143,9 @@ class MangaBakaClient:
         Returns:
             Flat dict of normalized metadata fields.
         """
-        title = self.normalizer.normalize_whitespace(series.get("title"))
+        title = self._extract_display_title(series)
+        if not title:
+            raise SourceFetchError("[MangaBaka] Series has no usable title in the API response.")
         localized_series = self._extract_localized_series(series)
 
         summary_raw = str(series.get("description") or "")
@@ -153,34 +157,36 @@ class MangaBakaClient:
 
         mangabaka_authors = self._join_people(series.get("authors"))
         mangabaka_artists = self._join_people(series.get("artists"))
-        anilist_people = self._fetch_anilist_people(series)
+        anilist_metadata = self._fetch_anilist_metadata(series)
 
         writer = self._merge_people_strings(
-            anilist_people.get("writer", ""),
+            anilist_metadata.get("writer", ""),
             mangabaka_authors,
         )
         penciller = self._merge_people_strings(
-            anilist_people.get("penciller", ""),
+            anilist_metadata.get("penciller", ""),
             mangabaka_artists,
         )
         inker = self._merge_people_strings(
-            anilist_people.get("inker", ""),
+            anilist_metadata.get("inker", ""),
             mangabaka_artists,
         )
         coverartist = self._merge_people_strings(
-            anilist_people.get("coverartist", ""),
+            anilist_metadata.get("coverartist", ""),
             mangabaka_artists,
         )
-        letterer = anilist_people.get("letterer", "")
+        letterer = anilist_metadata.get("letterer", "")
 
         publisher = self._extract_publisher(
             series.get("publishers"),
-            series.get("links_v2")
+            series.get("links") or series.get("links_v2"),
         )
 
-        genre = self._extract_genres(series)
-        tags = self._extract_tags(series)
-        web = self._extract_web(series)
+        # Prefer MangaBaka's own tags; use the already-fetched AniList data
+        # only when the full schema does not provide a usable value.
+        genre = self._extract_genres(series) or anilist_metadata.get("genre", "")
+        tags = self._extract_tags(series) or anilist_metadata.get("tags", "")
+        web = self._extract_web(series, anilist_metadata)
 
         age_rating = self._map_content_rating(series.get("content_rating"))
 
@@ -213,17 +219,66 @@ class MangaBakaClient:
             "letterer": letterer,
         }
 
+    def _extract_display_title(self, series: Dict[str, Any]) -> str:
+        """Select the preferred series title from MangaBaka's v2 titles.
+
+        English titles take priority, followed by legacy display names and
+        romanized names. When neither is available, use another primary title.
+
+        Args:
+            series: Raw MangaBaka series object.
+
+        Returns:
+            Preferred title, or an empty string when no title is available.
+        """
+        titles = series.get("titles")
+        if isinstance(titles, list):
+            english_titles = [
+                entry
+                for entry in titles
+                if isinstance(entry, dict)
+                and str(entry.get("language") or "").lower() == "en"
+                and self.normalizer.normalize_whitespace(entry.get("title"))
+            ]
+
+            # Use the preferred English title when multiple variants exist.
+            for entry in english_titles:
+                if entry.get("is_primary"):
+                    return self.normalizer.normalize_whitespace(entry.get("title"))
+            for entry in english_titles:
+                if "official" in (entry.get("traits") or []):
+                    return self.normalizer.normalize_whitespace(entry.get("title"))
+            if english_titles:
+                return self.normalizer.normalize_whitespace(english_titles[0].get("title"))
+
+        # Keep a legacy fallback for incomplete or transitional API payloads.
+        legacy_title = self.normalizer.normalize_whitespace(series.get("title"))
+        if legacy_title:
+            return legacy_title
+
+        romanized_title = self._extract_localized_series(series)
+        if romanized_title:
+            return romanized_title
+
+        if isinstance(titles, list):
+            for primary_only in (True, False):
+                for entry in titles:
+                    if not isinstance(entry, dict):
+                        continue
+                    title = self.normalizer.normalize_whitespace(entry.get("title"))
+                    if title and bool(entry.get("is_primary")) == primary_only:
+                        return title
+
+        return ""
+
     def _extract_localized_series(self, series: Dict[str, Any]) -> str:
         """Extract the best localized/romanized series title.
 
         Preference order:
-            1. Primary title from `titles` for the first matching preferred
-               language in priority order.
-            2. Non-primary title from `titles` for the first matching preferred
-               language in priority order.
-            3. `romanized_title`
-            4. `native_title`
-            5. Empty string
+            1. Romanized Japanese, Korean, then Chinese titles from `titles`.
+            2. Within each language, prefer primary + native, primary, native,
+               then the first available entry.
+            3. Legacy `romanized_title`, then `native_title`.
 
         Args:
             series: Raw MangaBaka series object.
@@ -306,14 +361,14 @@ class MangaBakaClient:
         """Extract the most relevant publisher.
 
         Priority order:
-            1. English publisher inferred from `external_links` via
+            1. English publisher inferred from external links via
                PUBLISHER_DOMAIN_MAP.
-            2. Officially declared English publisher from `publishers`.
-            3. First non-empty non-English publisher from `publishers`.
+            2. Publisher with `language == "en"` in the v2 `publishers` list.
+            3. First non-empty publisher as a fallback.
 
         Args:
             publishers: Raw `publishers` field from the API.
-            external_links: Raw `links_v2` field from the API.
+            external_links: Raw `links` (or legacy `links_v2`) field.
 
         Returns:
             Publisher name, or empty string if no suitable publisher is found.
@@ -333,14 +388,19 @@ class MangaBakaClient:
                     continue
 
                 name = self.normalizer.normalize_whitespace(entry.get("name"))
-                publisher_type = self.normalizer.normalize_whitespace(
+                publisher_language = self.normalizer.normalize_whitespace(
+                    entry.get("language")
+                ).lower()
+                legacy_publisher_type = self.normalizer.normalize_whitespace(
                     entry.get("type")
                 ).lower()
 
                 if not name:
                     continue
 
-                if publisher_type == "english":
+                if publisher_language == "en" or (
+                    not publisher_language and legacy_publisher_type == "english"
+                ):
                     english_name = name
                     break
 
@@ -353,16 +413,15 @@ class MangaBakaClient:
         return fallback_name
 
     def _extract_publisher_from_links(self, external_links: Any) -> str:
-        """Infer publisher from MangaBaka links_v2 hostnames.
+        """Infer publisher from MangaBaka v2/legacy external link hosts.
 
-        Expects MangaBaka API format:
-            - list[dict] where each dict may contain a `url` value
+        Expects a list of dictionaries containing URL values.
 
         Matches link domains against PUBLISHER_DOMAIN_MAP and returns the mapped
         English publisher name when a match is found.
 
         Args:
-            external_links: Raw `links_v2` field from the API.
+            external_links: Raw `links` (or legacy `links_v2`) field.
 
         Returns:
             Mapped English publisher name, or empty string if no match is found.
@@ -380,100 +439,110 @@ class MangaBakaClient:
                 continue
 
             for domain, publisher_name in PUBLISHER_DOMAIN_MAP.items():
-                if host.endswith(domain):
+                if host == domain or host.endswith(f".{domain}"):
                     return publisher_name
 
         return ""
 
     def _extract_genres(self, series: Dict[str, Any]) -> str:
-        """Extract and normalize genre names.
+        """Extract genres from v2 tags, with support for older payloads.
 
-        Prefers `genres_v2` when present. Falls back to deprecated `genres`.
+        In the v2 full schema, tags with `is_genre` set are genres.
 
         Args:
             series: Raw MangaBaka series object.
 
         Returns:
-            Comma-separated genre string.
+            Sorted comma-separated genre names.
         """
+        tags = series.get("tags")
+        if isinstance(tags, list) and any(
+            isinstance(entry, dict) and "is_genre" in entry for entry in tags
+        ):
+            names = [
+                self.normalizer.normalize_whitespace(entry.get("name"))
+                for entry in tags
+                if isinstance(entry, dict) and entry.get("is_genre")
+            ]
+            return ", ".join(sorted(set(name for name in names if name), key=str.lower))
+
+        # Transitional schema: genres_v2 is a separate list of named objects.
         genres_v2 = series.get("genres_v2")
         if isinstance(genres_v2, list):
-            names: List[str] = []
-            for entry in genres_v2:
-                if not isinstance(entry, dict):
-                    continue
-                name = self.normalizer.normalize_whitespace(entry.get("name"))
-                if name:
-                    names.append(name)
+            names = [
+                self.normalizer.normalize_whitespace(entry.get("name"))
+                for entry in genres_v2
+                if isinstance(entry, dict)
+            ]
+            return ", ".join(sorted(set(name for name in names if name), key=str.lower))
 
-            unique_names = sorted(set(names), key=str.lower)
-            return ", ".join(unique_names)
-
+        # Old schema: genres is a list of strings.
         genres = series.get("genres")
         if isinstance(genres, list):
-            cleaned: List[str] = []
-            for entry in genres:
-                if not isinstance(entry, str):
-                    continue
-                value = entry.strip().replace("_", " ")
-                if not value:
-                    continue
-                cleaned.append(self._title_case_loose(value))
-
-            unique_cleaned = sorted(set(cleaned), key=str.lower)
-            return ", ".join(unique_cleaned)
+            cleaned = [
+                self._title_case_loose(entry.strip().replace("_", " "))
+                for entry in genres
+                if isinstance(entry, str) and entry.strip()
+            ]
+            return ", ".join(sorted(set(cleaned), key=str.lower))
 
         return ""
 
     def _extract_tags(self, series: Dict[str, Any]) -> str:
-        """Extract and normalize tag names.
-
-        Prefers `tags_v2` when present. Falls back to deprecated `tags`.
+        """Extract non-genre tags from the v2 or legacy tag fields.
 
         Args:
             series: Raw MangaBaka series object.
 
         Returns:
-            Comma-separated tag string.
+            Sorted comma-separated tag names.
         """
-        tags_v2 = series.get("tags_v2")
-        if isinstance(tags_v2, list):
-            names: List[str] = []
-            for entry in tags_v2:
-                if not isinstance(entry, dict):
-                    continue
-                name = self.normalizer.normalize_whitespace(entry.get("name"))
-                if name:
-                    names.append(name)
-
-            unique_names = sorted(set(names), key=str.lower)
-            return ", ".join(unique_names)
-
         tags = series.get("tags")
         if isinstance(tags, list):
-            cleaned = [
-                self.normalizer.normalize_whitespace(tag)
-                for tag in tags
-                if isinstance(tag, str) and tag.strip()
+            # The full v2 schema uses named objects with an is_genre flag.
+            if any(isinstance(entry, dict) for entry in tags):
+                names = [
+                    self.normalizer.normalize_whitespace(entry.get("name"))
+                    for entry in tags
+                    if isinstance(entry, dict) and not entry.get("is_genre", False)
+                ]
+                return ", ".join(sorted(set(name for name in names if name), key=str.lower))
+
+            # Legacy tags used plain strings.
+            if tags and all(isinstance(entry, str) for entry in tags):
+                cleaned = [
+                    self.normalizer.normalize_whitespace(entry)
+                    for entry in tags
+                ]
+                return ", ".join(sorted(set(name for name in cleaned if name), key=str.lower))
+
+        tags_v2 = series.get("tags_v2")
+        if isinstance(tags_v2, list):
+            names = [
+                self.normalizer.normalize_whitespace(entry.get("name"))
+                for entry in tags_v2
+                if isinstance(entry, dict)
             ]
-            unique_cleaned = sorted(set(cleaned), key=str.lower)
-            return ", ".join(unique_cleaned)
+            return ", ".join(sorted(set(name for name in names if name), key=str.lower))
 
         return ""
 
-    def _extract_web(self, series: Dict[str, Any]) -> str:
-        """Build the ComicInfo Web field using curated source URLs only.
+    def _extract_web(
+        self,
+        series: Dict[str, Any],
+        anilist_metadata: Optional[Dict[str, str]] = None,
+    ) -> str:
+        """Build the ComicInfo Web field using curated source URLs.
 
-        Included URLs are limited to:
-            1. The MangaBaka series URL.
-            2. The AniList manga URL when a linked AniList ID exists.
-            3. External links whose domains are present in PUBLISHER_DOMAIN_MAP.
+        Included URLs are limited to the MangaBaka canonical URL, the linked
+        AniList URL, and publisher-domain links from MangaBaka or AniList.
 
         Args:
             series: Raw MangaBaka series object.
+            anilist_metadata: Already-fetched AniList fields, if available.
 
         Returns:
-            Space-separated URL string.
+            Space-separated unique URLs.
         """
         curated_links: List[str] = []
 
@@ -485,35 +554,58 @@ class MangaBakaClient:
         if anilist_url:
             curated_links.append(anilist_url)
 
-        links = series.get("links_v2")
+        # v2 full schema contains `links`; preserve compatibility with `links_v2`.
+        links = series.get("links")
+        if not links:
+            links = series.get("links_v2")
         if isinstance(links, list):
             for link in links:
                 url = self._extract_link_v2_url(link)
-                if not url:
-                    continue
+                if url and self._is_publisher_domain_link(url):
+                    curated_links.append(url)
 
+        # Also reuse qualifying AniList INFO/ENGLISH publisher links,
+        # without making a second AniList request.
+        if anilist_metadata:
+            for url in anilist_metadata.get("web", "").split():
                 if self._is_publisher_domain_link(url):
                     curated_links.append(url)
 
-        unique_links = list(dict.fromkeys(curated_links))
-        return " ".join(unique_links)
+        return " ".join(dict.fromkeys(curated_links))
 
     def _build_mangabaka_series_url(self, series: Dict[str, Any]) -> str:
-        """Build the canonical MangaBaka series URL from the series ID.
+        """Use MangaBaka's canonical URL, or reconstruct a valid page URL.
 
         Args:
             series: Raw MangaBaka series object.
 
         Returns:
-            Canonical MangaBaka URL, or an empty string if no valid ID exists.
+            Canonical page URL, or an empty string for an invalid ID/type.
         """
-        raw_id = series.get("id")
         try:
-            series_id = int(raw_id)
+            series_id = int(series.get("id"))
         except (TypeError, ValueError):
             return ""
 
-        return f"https://mangabaka.org/{series_id}"
+        if series_id <= 0:
+            return ""
+
+        canonical_url = self.normalizer.normalize_whitespace(series.get("canonical_url"))
+        if canonical_url and self._extract_id(canonical_url) == series_id:
+            return canonical_url
+
+        # Page URLs use three categories, even though series types can vary.
+        series_type = str(series.get("type") or "").lower()
+        if series_type == "novel":
+            category = "novel"
+        elif series_type == "other":
+            category = "other"
+        elif series_type in {"manga", "manhwa", "manhua", "oel"}:
+            category = "manga"
+        else:
+            return ""
+
+        return f"https://mangabaka.org/{category}/{series_id}"
 
     def _build_anilist_series_url(self, series: Dict[str, Any]) -> str:
         """Build the canonical AniList manga URL from the linked AniList ID.
@@ -531,10 +623,10 @@ class MangaBakaClient:
         return f"https://anilist.co/manga/{anilist_id}"
 
     def _extract_link_v2_url(self, link: Any) -> str:
-        """Extract a normalized URL from a MangaBaka links_v2 entry.
+        """Extract a normalized URL from a MangaBaka external link entry.
 
         Args:
-            link: Raw links_v2 entry from the API.
+            link: Raw `links` or legacy `links_v2` entry.
 
         Returns:
             Normalized URL string, or an empty string if unavailable.
@@ -558,45 +650,41 @@ class MangaBakaClient:
             return False
 
         for domain in PUBLISHER_DOMAIN_MAP:
-            if host.endswith(domain):
+            if host == domain or host.endswith(f".{domain}"):
                 return True
 
         return False
 
     @staticmethod
     def _extract_url_host(url: str) -> str:
-        """Extract a normalized hostname from a URL string.
+        """Extract the hostname of a valid HTTP(S) URL.
 
         Args:
             url: URL to inspect.
 
         Returns:
-            Lowercased hostname without a leading ``www.``, or an empty string
-            if parsing fails.
+            Lowercased hostname without `www.`, or an empty string.
         """
         try:
-            host = url.split("//", 1)[-1].split("/", 1)[0].lower()
-        except Exception:
+            parsed = urlsplit(url.strip())
+            if parsed.scheme.lower() not in {"http", "https"}:
+                return ""
+            return (parsed.hostname or "").lower().removeprefix("www.")
+        except ValueError:
             return ""
 
-        return host.removeprefix("www.")
+    def _fetch_anilist_metadata(self, series: Dict[str, Any]) -> Dict[str, str]:
+        """Fetch supplementary AniList staff, genres, tags, and external links.
 
-    def _fetch_anilist_people(self, series: Dict[str, Any]) -> Dict[str, str]:
-        """Fetch enriched staff fields from AniList using MangaBaka's linked ID.
-
-        MangaBaka may expose a linked AniList ID under ``source.anilist.id``.
-        When present, this method performs a lightweight AniList lookup and
-        returns the richer people fields parsed by ``AniListClient``.
-
-        Any AniList lookup failure is treated as non-fatal so MangaBaka metadata
-        fetching can still succeed with its native author and artist fields.
+        The linked ID comes from `source.anilist.id`. The single request enriches
+        people fields and provides fallbacks when MangaBaka omits tags or links.
+        AniList failures are non-fatal; MangaBaka data remains usable.
 
         Args:
             series: Raw MangaBaka series object.
 
         Returns:
-            A dict containing zero or more of the following lowercase keys:
-            ``writer``, ``penciller``, ``inker``, ``coverartist``, ``letterer``.
+            AniList people, genre, tag, and Web fields, or an empty dict.
         """
         anilist_id = self._extract_anilist_id(series)
         if anilist_id is None:
@@ -624,6 +712,9 @@ class MangaBakaClient:
             "inker": raw.get("inker", ""),
             "coverartist": raw.get("coverartist", ""),
             "letterer": raw.get("letterer", ""),
+            "genre": raw.get("genre", ""),
+            "tags": raw.get("tags", ""),
+            "web": raw.get("web", ""),
         }
 
     @staticmethod
@@ -715,32 +806,49 @@ class MangaBakaClient:
 
     @staticmethod
     def _extract_id(url: str) -> Optional[int]:
-        """Extract the MangaBaka series ID from a supported URL.
+        """Extract a MangaBaka series ID from new or legacy URLs.
 
-        Supported examples:
-            - https://mangabaka.org/7546
-            - https://mangabaka.org/7546?q=Toradora
+        Supports `/manga/{id}`, `/novel/{id}`, `/other/{id}`, older `/{id}`
+        links, and direct `/v2/series/{id}` API URLs. The hostname is checked
+        explicitly so unrelated websites cannot supply a series ID.
 
         Args:
-            url: MangaBaka URL.
+            url: MangaBaka series page or API URL.
 
         Returns:
-            Integer series ID if found, otherwise None.
+            Positive series ID, or None for an unsupported URL.
         """
-        patterns = [
-            r"mangabaka\.org/(\d+)(?:[/?#]|$)",
-        ]
+        try:
+            parsed = urlsplit(url.strip())
+            host = (parsed.hostname or "").lower()
+        except ValueError:
+            return None
 
-        for pattern in patterns:
-            match = re.search(pattern, url, flags=re.IGNORECASE)
-            if not match:
-                continue
-            try:
-                return int(match.group(1))
-            except ValueError:
-                return None
+        if parsed.scheme.lower() not in {"http", "https"}:
+            return None
 
-        return None
+        path_parts = [part for part in parsed.path.split("/") if part]
+        raw_id = ""
+
+        if host in {"mangabaka.org", "www.mangabaka.org"}:
+            if len(path_parts) >= 2 and path_parts[0].lower() in {
+                "manga", "novel", "other"
+            }:
+                raw_id = path_parts[1]
+            elif path_parts and path_parts[0].isdigit():
+                raw_id = path_parts[0]
+        elif host == "api.mangabaka.org":
+            if len(path_parts) == 3 and path_parts[:2] in (
+                ["v1", "series"], ["v2", "series"]
+            ):
+                raw_id = path_parts[2]
+
+        try:
+            series_id = int(raw_id)
+        except (TypeError, ValueError):
+            return None
+
+        return series_id if series_id > 0 else None
 
     @staticmethod
     def _strip_html(text: str) -> str:
