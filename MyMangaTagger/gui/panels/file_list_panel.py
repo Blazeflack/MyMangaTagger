@@ -4,7 +4,8 @@
 File list panel for MyMangaTagger GUI.
 
 This module defines FileListPanel, which encapsulates the drag-and-drop
-listbox for CBZ files, placeholder hints, and file selection/removal logic.
+listbox for CBZ files, placeholder hints, file selection/removal logic,
+and a context menu for copying the immediate parent folder name.
 """
 
 import tkinter as tk
@@ -101,6 +102,16 @@ class FileListPanel:
         self.listbox.bind("<Delete>", self.delete_selected_files)
         self.listbox.bind("<Control-a>", self.select_all_files)
         self.listbox.bind("<Control-A>", self.select_all_files)
+        self.listbox.bind("<Button-3>", self._show_context_menu)
+
+        # Context menu for copying file-related information.
+        # Keep the clicked path separate from the current selection.
+        self._context_path: Optional[Path] = None
+        self.context_menu = tk.Menu(self.listbox, tearoff=False)
+        self.context_menu.add_command(
+            label="Copy Parent Folder Name",
+            command=self._copy_parent_folder_name,
+        )
 
         # Initialize display
         self.update_list(self.paths)
@@ -144,6 +155,69 @@ class FileListPanel:
         sel = self.listbox.curselection()
         if sel:
             self.on_selection(sel[0])
+
+    def _show_context_menu(self, event: tk.Event) -> str:
+        """Show the context menu for the CBZ file under the mouse.
+
+        The menu is only displayed when right-clicking a visible file
+        row. Existing file selections are preserved.
+
+        Args:
+            event: Right-click event containing mouse coordinates.
+
+        Returns:
+            "break" to prevent further handling of the event.
+        """
+        if not self.paths:
+            return "break"
+
+        # Determine which file was right-clicked.
+        index = self.listbox.nearest(event.y)
+
+        if not 0 <= index < len(self.paths):
+            return "break"
+
+        # Ignore clicks in empty space below the file entries.
+        bounds = self.listbox.bbox(index)
+        if bounds is None:
+            return "break"
+
+        _, top, _, height = bounds
+        if not top <= event.y < top + height:
+            return "break"
+
+        # Remember the clicked file without changing the selection.
+        self._context_path = self.paths[index]
+
+        # Display the context menu at the mouse position.
+        try:
+            self.context_menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            self.context_menu.grab_release()
+
+        return "break"
+
+    def _copy_parent_folder_name(self) -> None:
+        """Copy the clicked CBZ file's immediate parent folder name.
+
+        Uses the original file path stored in the file list rather than
+        the displayed filename or current selection.
+        """
+        if self._context_path is None:
+            return
+
+        # Extract only the immediate parent directory name.
+        folder_name = self._context_path.parent.name
+
+        if not folder_name:
+            return
+
+        # Copy the folder name to the system clipboard.
+        self.listbox.clipboard_clear()
+        self.listbox.clipboard_append(folder_name)
+        self.listbox.update_idletasks()
+
+        log("DEBUG", f"Copied parent folder name: {folder_name}")
 
     def pack(self, **kwargs: Any) -> None:
         """
