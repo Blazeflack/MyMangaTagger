@@ -253,8 +253,13 @@ Runtime files such as `settings.json` and `mymangatagger.log` are created locall
 
 Metadata sources use a small adapter interface and are automatically discovered when their modules are placed in `sources/`. See [`sources/_template.py`](sources/_template.py) for an example of how to register a source, recognize its URLs, and map results into ComicInfo-compatible fields.
 
+## License
+
+MyMangaTagger is licensed under the MIT License.
+See the [LICENSE](LICENSE) file for details.
+
 ## Acknowledgements and usage
 
 MyMangaTagger is a personal project developed for learning and experimentation, with heavy use of AI assistance, and is inspired by [MangaManager](https://github.com/MangaManagerORG/Manga-Manager).
 
-Metadata and publisher information remain subject to the terms of the respective source websites and APIs. The repository's license, if one is provided, governs reuse and redistribution of the application's source code.
+Metadata and publisher information remain subject to the terms of the respective source websites and APIs.
