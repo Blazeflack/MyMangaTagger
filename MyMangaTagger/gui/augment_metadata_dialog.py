@@ -66,7 +66,7 @@ class AugmentMetadataUrlDialog(tk.Toplevel):
             outer,
             text=(
                 f"{selected_count} selected file(s). Enter a publisher series URL "
-                "from J-Novel Club, Yen Press, Seven Seas, or Kodansha USA."
+                "from J-Novel Club, Yen Press, Seven Seas, Kodansha USA, or One Peace Books."
             ),
             wraplength=620,
         ).pack(anchor=tk.W, pady=(0, 10))
