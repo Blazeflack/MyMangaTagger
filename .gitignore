@@ -16,6 +16,7 @@ Thumbs.db
 # Virtual environments
 .env/
 .venv/
+venv/
 
 # Sensitive
 MyMangaTagger/settings.json
